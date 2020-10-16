@@ -26,6 +26,9 @@ public class QueryDSL {
 		
 		SearchRequest searchRequest = new SearchRequest(indexname);
 		SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+		
+		// 정렬
+		// searchSourceBuilder.sort("date", SortOrder.DESC);
 		searchSourceBuilder.size(size);
 		searchSourceBuilder.query(querydto.prefixQuery());
 		searchRequest.source(searchSourceBuilder);
