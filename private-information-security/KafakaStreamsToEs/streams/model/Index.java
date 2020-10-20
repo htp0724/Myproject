@@ -26,7 +26,7 @@ public class Index {
 		"}";
 		*/
 		
-		return jobject.toString();
+		return "{\"properties\" : { \"message\" : { \"type\" : \"keyword\" }, \"date\" : { \"type\" : \"date\", \"format\" : \"yyyy-MM-dd HH:mm:ss\"}}}";
 	}
 	
 }
