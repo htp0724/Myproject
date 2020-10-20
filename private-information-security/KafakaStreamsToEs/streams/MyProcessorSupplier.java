@@ -1,13 +1,8 @@
-package com.kafka.streams;
-
 import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.processor.Processor;
 import org.apache.kafka.streams.processor.ProcessorContext;
@@ -17,11 +12,15 @@ import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import com.google.gson.Gson;
+import com.kafka.streams.Authorization.Authorization;
 import com.kafka.streams.model.Data;
 
 class MyProcessorSupplier implements ProcessorSupplier<String, String> {
@@ -30,11 +29,28 @@ class MyProcessorSupplier implements ProcessorSupplier<String, String> {
 	public Processor<String, String> get() {
 		return new Processor<String, String>() {
 			private Logger logger = LogManager.getLogger(MyProcessorSupplier.class);
-			private String indexname = "testindex";
 			private ProcessorContext context;
 			private KeyValueStore<String, Integer> kvStore;
 			private Data data = new Data();
 			private Gson gson = new Gson();
+			
+			private String indexname = "test_index";
+			private String id = "user";
+			private String password = "password";
+			
+			IndexRequest request = new IndexRequest(indexname);
+			
+			ActionListener<IndexResponse> listener = new ActionListener<IndexResponse>() {
+				
+				@Override
+				public void onResponse(IndexResponse indexResponse) {
+					logger.info(indexResponse.toString());
+				}
+				@Override
+				public void onFailure(Exception e) {
+					logger.info(e.toString());
+				}
+			};
 			// 프로세서 생성 시 초기화
 			@Override
 			@SuppressWarnings("unchecked")
@@ -63,10 +79,10 @@ class MyProcessorSupplier implements ProcessorSupplier<String, String> {
 			// elasticsearch 전송
 			@Override
 			public void process(final String dummy, final String line) {
-		
+				
 				//날짜 생성
 				LocalDateTime now = LocalDateTime.now();
-				DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM");
+				DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 				String nowString = now.format(dateTimeFormatter);
 				data.setMessage(line);
 				data.setDate(nowString);
@@ -82,28 +98,28 @@ class MyProcessorSupplier implements ProcessorSupplier<String, String> {
 				   new HttpHost("localhost", 9300, "http")).build();
 				 */
 				
-				// 클라이언트 연결
-				RestClient restClient = RestClient.builder(new HttpHost("172.17.104.17", 9200, "http")).build();
+				// 클라이언트 연결 및 index 생성
+				RestHighLevelClient restClient = CreateIndex.createindex();
+				
+				// ID, password 방식 로그인
+				// restClient = Authorization.highClientLogin(id, password);
 				
 				// 데이터 insert 쿼리생성
-				Request request = new Request("POST", "/"+ indexname +"/_doc");
-				request.setEntity(new NStringEntity(
-						gson.toJson(data),
-						ContentType.APPLICATION_JSON));
-				Response response;
-
-				try {
-					
-					// insert 요청
-					response = restClient.performRequest(request);
-					logger.info(response);
-					
-					// 반드시 클라이언트를 닫아줘야함
-					restClient.close();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				/*
+					Request request = new Request("POST", "/"+ indexname +"/_doc");
+					request.setEntity(new NStringEntity(
+					gson.toJson(data),
+					ContentType.APPLICATION_JSON));
+					Response response;
+				*/
+				
+				request.source(gson.toJson(data), XContentType.JSON);
+				
+				// insert 요청
+				restClient.indexAsync(request, RequestOptions.DEFAULT, listener);
+				
+				// 반드시 클라이언트를 닫아줘야함
+				// restClient.close();
 			}
 
 			@Override
